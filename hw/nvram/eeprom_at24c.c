@@ -14,6 +14,10 @@
 #include "hw/i2c/i2c.h"
 #include "hw/qdev-properties.h"
 #include "sysemu/block-backend.h"
+#include "ui/console.h"
+#include "ui/at24c02_ui.h"
+
+#include "hw/nvram/eeprom_at24c.h"
 
 /* #define DEBUG_AT24C */
 
@@ -26,26 +30,6 @@
 #define ERR(FMT, ...) fprintf(stderr, TYPE_AT24C_EE " : " FMT, \
                             ## __VA_ARGS__)
 
-#define TYPE_AT24C_EE "at24c-eeprom"
-#define AT24C_EE(obj) OBJECT_CHECK(EEPROMState, (obj), TYPE_AT24C_EE)
-
-typedef struct EEPROMState {
-    I2CSlave parent_obj;
-
-    /* address counter */
-    uint16_t cur;
-    /* total size in bytes */
-    uint32_t rsize;
-    bool writable;
-    /* cells changed since last START? */
-    bool changed;
-    /* during WRITE, # of address bytes transfered */
-    uint8_t haveaddr;
-
-    uint8_t *mem;
-
-    BlockBackend *blk;
-} EEPROMState;
 
 static
 int at24c_eeprom_event(I2CSlave *s, enum i2c_event event)
@@ -82,6 +66,8 @@ uint8_t at24c_eeprom_recv(I2CSlave *s)
 
     ret = ee->mem[ee->cur];
 
+	at24c_ui_mem_update(ee, AT24C_UI_MEM_UPDATE_REASON_READ, ee->cur, ret);
+	
     ee->cur = (ee->cur + 1u) % ee->rsize;
     DPRINTK("Recv %02x %c\n", ret, ret);
 
@@ -93,11 +79,13 @@ int at24c_eeprom_send(I2CSlave *s, uint8_t data)
 {
     EEPROMState *ee = AT24C_EE(s);
 
-    if (ee->haveaddr < 2) {
+    //if (ee->haveaddr < 2) {
+    if (ee->haveaddr < 1) { /* 100ask */
         ee->cur <<= 8;
         ee->cur |= data;
         ee->haveaddr++;
-        if (ee->haveaddr == 2) {
+        //if (ee->haveaddr == 2) {
+        if (ee->haveaddr == 1) {  /* 100ask */
             ee->cur %= ee->rsize;
             DPRINTK("Set pointer %04x\n", ee->cur);
         }
@@ -107,6 +95,7 @@ int at24c_eeprom_send(I2CSlave *s, uint8_t data)
             DPRINTK("Send %02x\n", data);
             ee->mem[ee->cur] = data;
             ee->changed = true;
+			at24c_ui_mem_update(ee, AT24C_UI_MEM_UPDATE_REASON_WRITE, ee->cur, data);
         } else {
             DPRINTK("Send error %02x read-only\n", data);
         }
@@ -116,6 +105,7 @@ int at24c_eeprom_send(I2CSlave *s, uint8_t data)
 
     return 0;
 }
+
 
 static void at24c_eeprom_realize(DeviceState *dev, Error **errp)
 {
@@ -139,7 +129,10 @@ static void at24c_eeprom_realize(DeviceState *dev, Error **errp)
         }
     }
 
-    ee->mem = g_malloc0(ee->rsize);
+	ee->rsize = 256;  /* 100ask,at24c08 */
+    ee->mem = g_malloc0(ee->rsize);	
+
+	at24c_ui_create(dev);
 }
 
 static

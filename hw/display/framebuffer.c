@@ -21,6 +21,11 @@
 #include "ui/console.h"
 #include "framebuffer.h"
 
+#include "ui/file.h"
+#include "ui/pic_operation.h"
+#include "ui/picfmt_manager.h"
+
+
 void framebuffer_update_memory_section(
     MemoryRegionSection *mem_section,
     MemoryRegion *root,
@@ -120,3 +125,35 @@ void framebuffer_update_display(
     *first_row = first;
     *last_row = last;
 }
+
+
+void framebuffer_update_region(
+	DisplaySurface *ds,
+	PT_PixelDatas rgb_pixels,
+	int x, /* left uper point: (x, y).  */
+	int y, 
+	int width,
+	int height)
+{
+	uint8_t *dest;
+	uint8_t *src;
+	int i;
+	int dest_row_pitch;
+	int width_bytes;
+	
+	src = rgb_pixels->aucPixelDatas;
+
+	dest_row_pitch = surface_stride(ds);
+	dest = surface_data(ds);
+	dest += y * dest_row_pitch + x * (surface_bits_per_pixel(ds) >> 3);
+	width_bytes = width * (surface_bits_per_pixel(ds) >> 3);
+
+	for (i = 0; i < height; i++) {
+		memcpy(dest, src, width_bytes);  /* 简化版本，因为src BPP == dest BPP */
+		
+		src  += rgb_pixels->iLineBytes;
+		dest += dest_row_pitch;
+	}
+}
+
+	

@@ -60,4 +60,8 @@ typedef struct IMXGPIOState {
     qemu_irq output[IMX_GPIO_PIN_COUNT];
 } IMXGPIOState;
 
+int imx_gpio_ui_need_update(int *led_status);
+void notify_imx_gpio_change(int group, int pin, int level);
+
+
 #endif /* IMX_GPIO_H */

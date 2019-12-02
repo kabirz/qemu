@@ -35,6 +35,9 @@ void sdl2_2d_update(DisplayChangeListener *dcl,
     DisplaySurface *surf = qemu_console_surface(dcl->con);
     SDL_Rect rect;
     size_t surface_data_offset;
+	
+	uint8_t *surf_data;
+	uint8_t tmp;
     assert(!scon->opengl);
 
     if (!surf) {
@@ -43,6 +46,10 @@ void sdl2_2d_update(DisplayChangeListener *dcl,
     if (!scon->texture) {
         return;
     }
+
+	surf_data = surface_data(surf);
+	tmp = *surf_data;
+	tmp = tmp;
 
     surface_data_offset = surface_bytes_per_pixel(surf) * x +
                           surface_stride(surf) * y;
@@ -58,6 +65,101 @@ void sdl2_2d_update(DisplayChangeListener *dcl,
     SDL_RenderCopy(scon->real_renderer, scon->texture, NULL, NULL);
     SDL_RenderPresent(scon->real_renderer);
 }
+
+/* 100ask */
+int sdl2_2d_dpy_gfx_hide_or_show(DisplayChangeListener *dcl)
+{
+	struct sdl2_console *scon = container_of(dcl, struct sdl2_console, dcl);
+
+	scon->hidden = !scon->hidden;
+	if (scon->real_window) {
+		if (scon->hidden) {
+			SDL_HideWindow(scon->real_window);
+		} else {
+			SDL_ShowWindow(scon->real_window);
+		}
+	}
+
+	qemu_console_set_hidden(dcl->con, scon->hidden);
+
+	return !scon->hidden;
+}
+
+int sdl2_2d_dpy_gfx_is_visible(DisplayChangeListener *dcl)
+{
+	struct sdl2_console *scon = container_of(dcl, struct sdl2_console, dcl);
+	return !scon->hidden;
+}
+
+
+/* 100ask */
+void sdl2_2d_update_image(DisplayChangeListener *dcl, const char *file,
+					int x, int y, int w, int h)
+{
+	struct sdl2_console *scon = container_of(dcl, struct sdl2_console, dcl);
+	DisplaySurface *surf = qemu_console_surface(dcl->con);
+	SDL_Rect rect;
+
+	SDL_Texture * texture;
+	SDL_Surface * image;
+
+	//uint8_t *win_data;
+	uint8_t *surf_data;
+	//uint32_t len;
+		
+	//SDL_Surface *win_surf;
+	
+	assert(!scon->opengl);
+
+	if (!surf) {
+		return;
+	}
+	if (!scon->texture) {
+		return;
+	}
+
+#ifdef CONFIG_SDL_IMAGE
+		image = = IMG_Load(file);
+#else
+		image = SDL_LoadBMP(file);
+		if (image) {
+			uint32_t colorkey = SDL_MapRGB(image->format, 255, 255, 255);
+			SDL_SetColorKey(image, SDL_TRUE, colorkey);
+		}
+#endif
+
+	if (!image) {
+		return;
+	}
+
+	rect.x = x;
+	rect.y = y;
+	rect.w = w;
+	rect.h = h;
+	
+	texture = SDL_CreateTextureFromSurface(scon->real_renderer, image);
+
+	SDL_RenderClear(scon->real_renderer);
+	SDL_RenderCopy(scon->real_renderer, texture, NULL, &rect);	
+	SDL_RenderPresent(scon->real_renderer);
+
+/*
+	win_surf = SDL_GetWindowSurface(scon->real_window);
+
+	SDL_LockSurface(win_surf);
+	win_data = (uint8_t *)win_surf->pixels;
+
+	surf_data = surface_data(surf);
+	len = surface_stride(surf) * surface_height(surf);
+	memcpy(surf_data, win_data, len);
+	SDL_UnlockSurface(win_surf);
+*/
+	surf_data = surface_data(surf);
+	SDL_RenderReadPixels(scon->real_renderer, NULL, 0, (void *)surf_data, surface_stride(surf));
+	
+	SDL_DestroyTexture(texture);
+}
+
 
 void sdl2_2d_switch(DisplayChangeListener *dcl,
                     DisplaySurface *new_surface)

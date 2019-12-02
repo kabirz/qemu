@@ -33,6 +33,7 @@
 #include "chardev/char-fe.h"
 #include "trace.h"
 #include "exec/memory.h"
+#include "hw/display/device_manager.h"
 
 #define DEFAULT_BACKSCROLL 512
 #define CONSOLE_CURSOR_PERIOD 500
@@ -128,6 +129,7 @@ struct QemuConsole {
     DisplayChangeListener *gl;
     bool gl_block;
     int window_id;
+    int hidden;  /* 100ask */
 
     /* Graphic console state.  */
     Object *device;
@@ -298,6 +300,41 @@ void graphic_hw_invalidate(QemuConsole *con)
         con->hw_ops->invalidate(con->hw);
     }
 }
+
+int dpy_gfx_hide_or_show_window(QemuConsole *con)
+{
+    DisplayState *s = con->ds;
+    DisplayChangeListener *dcl;
+	
+    QLIST_FOREACH(dcl, &s->listeners, next) {
+        if (con != (dcl->con ? dcl->con : active_console)) {
+            continue;
+        }
+        if (dcl->ops->dpy_gfx_hide_or_show) {
+            return dcl->ops->dpy_gfx_hide_or_show(dcl);
+        }
+    }
+
+	return -1;
+}
+
+int dpy_gfx_is_visible(QemuConsole *con)
+{
+    DisplayState *s = con->ds;
+    DisplayChangeListener *dcl;
+	
+    QLIST_FOREACH(dcl, &s->listeners, next) {
+        if (con != (dcl->con ? dcl->con : active_console)) {
+            continue;
+        }
+        if (dcl->ops->dpy_gfx_is_visible) {
+            return dcl->ops->dpy_gfx_is_visible(dcl);
+        }
+    }
+
+	return -1;
+}
+
 
 static void ppm_save(const char *filename, DisplaySurface *ds,
                      Error **errp)
@@ -1564,6 +1601,38 @@ void dpy_gfx_update(QemuConsole *con, int x, int y, int w, int h)
     }
 }
 
+
+void dpy_gfx_update_image(QemuConsole *con, const char *file, int x, int y, int w, int h)
+{
+    DisplayState *s = con->ds;
+    DisplayChangeListener *dcl;
+    int width = w;
+    int height = h;
+
+    if (con->surface) {
+        width = surface_width(con->surface);
+        height = surface_height(con->surface);
+    }
+    x = MAX(x, 0);
+    y = MAX(y, 0);
+    x = MIN(x, width);
+    y = MIN(y, height);
+    w = MIN(w, width - x);
+    h = MIN(h, height - y);
+
+    if (!qemu_console_is_visible(con)) {
+        return;
+    }
+    QLIST_FOREACH(dcl, &s->listeners, next) {
+        if (con != (dcl->con ? dcl->con : active_console)) {
+            continue;
+        }
+        if (dcl->ops->dpy_gfx_update_image) {
+            dcl->ops->dpy_gfx_update_image(dcl, file, x, y, w, h);
+        }
+    }
+}
+
 void dpy_gfx_update_full(QemuConsole *con)
 {
     if (!con->surface) {
@@ -1914,8 +1983,53 @@ QemuConsole *graphic_console_init(DeviceState *dev, uint32_t head,
 
     surface = qemu_create_message_surface(width, height, noinit);
     dpy_gfx_replace_surface(s, surface);
+
+	notify_device_manager(s);
     return s;
 }
+
+
+QemuConsole *graphic_console_init_hidden(DeviceState *dev, uint32_t head,
+								const GraphicHwOps *hw_ops,
+								void *opaque)
+{
+  static const char noinit[] =
+	  "Guest has not initialized the display (yet).";
+  int width = 640;
+  int height = 480;
+  QemuConsole *s;
+  DisplayState *ds;
+  DisplaySurface *surface;
+
+  ds = get_alloc_displaystate();
+  s = qemu_console_lookup_unused();
+  if (s) {
+	  trace_console_gfx_reuse(s->index);
+	  if (s->surface) {
+		  width = surface_width(s->surface);
+		  height = surface_height(s->surface);
+	  }
+  } else {
+	  trace_console_gfx_new();
+	  s = new_console(ds, GRAPHIC_CONSOLE, head);
+	  s->ui_timer = timer_new_ms(QEMU_CLOCK_REALTIME,
+								 dpy_set_ui_info_timer, s);
+  }
+  graphic_console_set_hwops(s, hw_ops, opaque);
+  if (dev) {
+	  object_property_set_link(OBJECT(s), OBJECT(dev), "device",
+							   &error_abort);
+  }
+
+  surface = qemu_create_message_surface(width, height, noinit);
+  dpy_gfx_replace_surface(s, surface);
+
+  s->hidden = true;
+
+  notify_device_manager(s);
+  return s;
+}
+
 
 static const GraphicHwOps unused_ops = {
     /* no callbacks */
@@ -2069,6 +2183,16 @@ int qemu_console_get_index(QemuConsole *con)
         con = active_console;
     }
     return con ? con->index : -1;
+}
+
+int qemu_console_is_hidden(QemuConsole *con)
+{
+	return con->hidden;
+}
+
+void qemu_console_set_hidden(QemuConsole *con, int hidden)
+{
+	con->hidden = hidden;
 }
 
 uint32_t qemu_console_get_head(QemuConsole *con)

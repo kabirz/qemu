@@ -332,6 +332,9 @@ static void handle_keydown(SDL_Event *ev)
     int gui_key_modifier_pressed = get_mod_state();
     int gui_keysym = 0;
 
+	if (!scon)
+		return ; /* 100ask */
+
     if (!scon->ignore_hotkeys && gui_key_modifier_pressed && !ev->key.repeat) {
         switch (ev->key.keysym.scancode) {
         case SDL_SCANCODE_2:
@@ -412,6 +415,8 @@ static void handle_keyup(SDL_Event *ev)
 {
     struct sdl2_console *scon = get_scon_from_window(ev->key.windowID);
 
+	if (!scon)
+		return ; /* 100ask */
     scon->ignore_hotkeys = false;
     sdl2_process_key(scon, &ev->key);
 }
@@ -721,6 +726,9 @@ static const DisplayChangeListenerOps dcl_2d_ops = {
     .dpy_refresh          = sdl2_2d_refresh,
     .dpy_mouse_set        = sdl_mouse_warp,
     .dpy_cursor_define    = sdl_mouse_define,
+    .dpy_gfx_update_image = sdl2_2d_update_image, /* 100ask */
+    .dpy_gfx_hide_or_show = sdl2_2d_dpy_gfx_hide_or_show, /* 100ask */
+	.dpy_gfx_is_visible   = sdl2_2d_dpy_gfx_is_visible,   /* 100ask */
 };
 
 #ifdef CONFIG_OPENGL
@@ -807,6 +815,10 @@ static void sdl2_display_init(DisplayState *ds, DisplayOptions *o)
             qemu_console_get_index(con) != 0) {
             sdl2_console[i].hidden = true;
         }
+			
+		if (qemu_console_is_hidden(con)) /* 100ask */
+			sdl2_console[i].hidden = true;
+		
         sdl2_console[i].idx = i;
         sdl2_console[i].opts = o;
 #ifdef CONFIG_OPENGL

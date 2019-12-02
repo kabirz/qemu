@@ -111,6 +111,16 @@ DEF("M", HAS_ARG, QEMU_OPTION_M, "", QEMU_ARCH_ALL)
 
 DEF("cpu", HAS_ARG, QEMU_OPTION_cpu,
     "-cpu cpu        select CPU ('-cpu help' for list)\n", QEMU_ARCH_ALL)
+
+DEF("company", HAS_ARG, QEMU_OPTION_company,
+"-company <100ask | fire | atk>\n",
+QEMU_ARCH_ALL)
+
+DEF("com", HAS_ARG, QEMU_OPTION_com,
+"-company <100ask | fire | atk>\n",
+QEMU_ARCH_ALL)
+
+
 STEXI
 @item -cpu @var{model}
 @findex -cpu
