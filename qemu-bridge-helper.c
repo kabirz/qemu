@@ -257,6 +257,9 @@ int main(int argc, char **argv)
     }
 #endif
 
+    	freopen( "/home/book/stdout.txt", "w", stdout );
+	freopen( "/home/book/stderr.txt", "w", stderr );
+
     /* parse arguments */
     for (index = 1; index < argc; index++) {
         if (strcmp(argv[index], "--use-vnet") == 0) {

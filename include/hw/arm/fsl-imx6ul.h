@@ -79,6 +79,8 @@ typedef struct FslIMX6ULState {
     IMX2WdtState       wdt[FSL_IMX6UL_NUM_WDTS];
     MemoryRegion       rom;
     MemoryRegion       caam;
+	MemoryRegion       iomuxc_snvs;
+	MemoryRegion       emi;
     MemoryRegion       ocram;
     MemoryRegion       ocram_alias;
 } FslIMX6ULState;
@@ -93,6 +95,9 @@ enum FslIMX6ULMemoryMap {
     FSL_IMX6UL_AES_ENCRYPT_ADDR     = 0x10000000,
     FSL_IMX6UL_QSPI1_RX_ADDR        = 0x0C000000,
 
+	/* 100ask IOMUXC_SNVS */
+	FSL_IMX6UL_IOMUXC_SNVS          = 0x02290000,
+	
     /* AIPS-2 */
     FSL_IMX6UL_UART6_ADDR           = 0x021FC000,
     FSL_IMX6UL_I2C4_ADDR            = 0x021F8000,
@@ -192,8 +197,11 @@ enum FslIMX6ULMemoryMap {
     FSL_IMX6UL_OCRAM_MEM_SIZE       = 0x00020000,
     FSL_IMX6UL_CAAM_MEM_ADDR        = 0x00100000,
     FSL_IMX6UL_CAAM_MEM_SIZE        = 0x00008000,
+	FSL_IMX6UL_IOMUXC_SNVS_SIZE     = 0x00004000,
     FSL_IMX6UL_ROM_ADDR             = 0x00000000,
     FSL_IMX6UL_ROM_SIZE             = 0x00018000,
+	FSL_IMX6UL_EIM_CS_SIZE			= 0x50000000,
+    
 };
 
 enum FslIMX6ULIRQs {

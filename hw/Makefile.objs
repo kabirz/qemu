@@ -3,6 +3,7 @@ ifeq ($(CONFIG_SOFTMMU), y)
 devices-dirs-$(call lor,$(CONFIG_VIRTIO_9P),$(call land,$(CONFIG_VIRTFS),$(CONFIG_XEN))) += 9pfs/
 devices-dirs-y += acpi/
 devices-dirs-y += adc/
+devices-dirs-y += signal_analysis/
 devices-dirs-y += audio/
 devices-dirs-y += block/
 devices-dirs-y += bt/

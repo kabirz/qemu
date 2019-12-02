@@ -2,6 +2,9 @@
 #define QEMU_FRAMEBUFFER_H
 
 #include "exec/memory.h"
+#include "ui/file.h"
+#include "ui/pic_operation.h"
+#include "ui/picfmt_manager.h"
 
 /* Framebuffer device helper routines.  */
 
@@ -61,5 +64,14 @@ void framebuffer_update_display(
     void *opaque,
     int *first_row,
     int *last_row);
+
+
+void framebuffer_update_region(
+	DisplaySurface *ds,
+	PT_PixelDatas rgb_pixels,
+	int x, /* left uper point: (x, y).	*/
+	int y, 
+	int width,
+	int height);
 
 #endif

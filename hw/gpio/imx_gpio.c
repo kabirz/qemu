@@ -24,6 +24,11 @@
 #include "migration/vmstate.h"
 #include "qemu/log.h"
 #include "qemu/module.h"
+#include "hw/arm/fsl-imx6ul.h"
+#include "hw/signal_analysis/sample.h"
+#include "hw/display/100ask_qemu_fb.h"
+#include "ui/button_ui.h"
+#include "hw/gpio/100ask_imx6ull_buttons.h"
 
 #ifndef DEBUG_IMX_GPIO
 #define DEBUG_IMX_GPIO 0
@@ -41,6 +46,10 @@ typedef enum IMXGPIOLevel {
                                              __func__, ##args); \
         } \
     } while (0)
+
+
+static int led_signal_probe_index = -1;
+static imx6ul_board_desc *imx6ul_board;
 
 static const char *imx_gpio_reg_name(uint32_t reg)
 {
@@ -79,8 +88,8 @@ static void imx_gpio_update_int(IMXGPIOState *s)
 static void imx_gpio_set_int_line(IMXGPIOState *s, int line, IMXGPIOLevel level)
 {
     /* if this signal isn't configured as an input signal, nothing to do */
-    if (!extract32(s->gdir, line, 1)) {
-        return;
+    if (extract32(s->gdir, line, 1)) {
+         return;
     }
 
     /* When set, EDGE_SEL overrides the ICR config */
@@ -145,6 +154,87 @@ static inline void imx_gpio_set_all_output_lines(IMXGPIOState *s)
         }
     }
 }
+
+void notify_imx_gpio_change(int group, int pin, int level)
+{
+	char path[100];
+	sprintf(path,"/machine/soc/gpio%d", group-1);
+    IMXGPIOState *s = IMX_GPIO(object_resolve_path(path, NULL));
+
+	if (s)
+	{
+		imx_gpio_set(s, pin, level);
+	}
+}
+
+static void imx_gpio_info_update (void *opaque, hwaddr offset, uint64_t value,
+                           unsigned size)
+{
+    IMXGPIOState *s = IMX_GPIO(opaque);
+	SysBusDevice *dev = SYS_BUS_DEVICE(s);
+	int group;
+	int pin;
+	int i;
+
+	switch (dev->mmio[0].addr)
+	{
+		case FSL_IMX6UL_GPIO1_ADDR:
+		{
+			group = 1;
+			break;
+		}
+		
+		case FSL_IMX6UL_GPIO2_ADDR:
+		{
+			group = 2;
+			break;
+		}
+		
+		case FSL_IMX6UL_GPIO3_ADDR:
+		{
+			group = 3;
+			break;
+		}
+		
+		case FSL_IMX6UL_GPIO4_ADDR:
+		{
+			group = 4;
+			break;
+		}
+		
+		case FSL_IMX6UL_GPIO5_ADDR:
+		{
+			group = 5;
+			if (value & (1<<3))
+			{
+				report_pulse(led_signal_probe_index, 1);
+			}
+			else
+			{
+				report_pulse(led_signal_probe_index, 0);
+			}
+			
+			break;
+		}
+		
+	}
+
+	for (i = 0; i < imx6ul_board->led_cnt; i++)
+	{
+		if (group == IMX6UL_GPIO_GROUP(imx6ul_board->leds[i].pin))
+		{
+			pin = IMX6UL_GPIO_PIN(imx6ul_board->leds[i].pin);
+			if (value & (1<<pin))
+				imx6ul_board->leds[i].on = 0;
+			else
+				imx6ul_board->leds[i].on = 1;
+				
+			imx6ul_board->leds[i].need_ui_update = 1;
+		}
+	}
+	
+}
+
 
 static uint64_t imx_gpio_read(void *opaque, hwaddr offset, unsigned size)
 {
@@ -217,6 +307,7 @@ static void imx_gpio_write(void *opaque, hwaddr offset, uint64_t value,
     case DR_ADDR:
         s->dr = value;
         imx_gpio_set_all_output_lines(s);
+		imx_gpio_info_update(opaque, offset, value, size);
         break;
 
     case GDIR_ADDR:
@@ -327,6 +418,11 @@ static void imx_gpio_realize(DeviceState *dev, Error **errp)
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq[0]);
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq[1]);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
+
+	imx6ul_board = get_imx6ul_board();
+
+	if (-1 == led_signal_probe_index)
+		led_signal_probe_index = add_signal_probe("led", 1);
 }
 
 static void imx_gpio_class_init(ObjectClass *klass, void *data)

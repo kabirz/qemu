@@ -51,6 +51,11 @@ void sdl2_process_key(struct sdl2_console *scon,
 
 void sdl2_2d_update(DisplayChangeListener *dcl,
                     int x, int y, int w, int h);
+void sdl2_2d_update_image(DisplayChangeListener *dcl, const char *file,
+                    int x, int y, int w, int h);
+int sdl2_2d_dpy_gfx_hide_or_show(DisplayChangeListener *dcl);
+int sdl2_2d_dpy_gfx_is_visible(DisplayChangeListener *dcl);
+
 void sdl2_2d_switch(DisplayChangeListener *dcl,
                     DisplaySurface *new_surface);
 void sdl2_2d_refresh(DisplayChangeListener *dcl);

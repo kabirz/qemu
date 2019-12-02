@@ -189,6 +189,8 @@ typedef struct DisplayChangeListenerOps {
 
     void (*dpy_gfx_update)(DisplayChangeListener *dcl,
                            int x, int y, int w, int h);
+    void (*dpy_gfx_update_image)(DisplayChangeListener *dcl, const char *file,
+                           int x, int y, int w, int h);
     void (*dpy_gfx_switch)(DisplayChangeListener *dcl,
                            struct DisplaySurface *new_surface);
     bool (*dpy_gfx_check_format)(DisplayChangeListener *dcl,
@@ -234,6 +236,9 @@ typedef struct DisplayChangeListenerOps {
     void (*dpy_gl_update)(DisplayChangeListener *dcl,
                           uint32_t x, uint32_t y, uint32_t w, uint32_t h);
 
+    /*100ask */
+    int (*dpy_gfx_hide_or_show)(DisplayChangeListener *dcl); 
+	int (*dpy_gfx_is_visible)(DisplayChangeListener *dcl); 
 } DisplayChangeListenerOps;
 
 struct DisplayChangeListener {
@@ -281,6 +286,10 @@ bool dpy_ui_info_supported(QemuConsole *con);
 int dpy_set_ui_info(QemuConsole *con, QemuUIInfo *info);
 
 void dpy_gfx_update(QemuConsole *con, int x, int y, int w, int h);
+void dpy_gfx_update_image(QemuConsole *con, const char *file, int x, int y, int w, int h);
+int dpy_gfx_hide_or_show_window(QemuConsole *con);
+int dpy_gfx_is_visible(QemuConsole *con);
+
 void dpy_gfx_update_full(QemuConsole *con);
 void dpy_gfx_replace_surface(QemuConsole *con,
                              DisplaySurface *surface);
@@ -374,6 +383,11 @@ typedef struct GraphicHwOps {
 QemuConsole *graphic_console_init(DeviceState *dev, uint32_t head,
                                   const GraphicHwOps *ops,
                                   void *opaque);
+
+QemuConsole *graphic_console_init_hidden(DeviceState *dev, uint32_t head,
+								  const GraphicHwOps *ops,
+								  void *opaque);
+
 void graphic_console_set_hwops(QemuConsole *con,
                                const GraphicHwOps *hw_ops,
                                void *opaque);
@@ -397,6 +411,9 @@ bool qemu_console_is_fixedsize(QemuConsole *con);
 bool qemu_console_is_gl_blocked(QemuConsole *con);
 char *qemu_console_get_label(QemuConsole *con);
 int qemu_console_get_index(QemuConsole *con);
+int qemu_console_is_hidden(QemuConsole *con);
+void qemu_console_set_hidden(QemuConsole *con, int hidden);
+
 uint32_t qemu_console_get_head(QemuConsole *con);
 QemuUIInfo *qemu_console_get_ui_info(QemuConsole *con);
 int qemu_console_get_width(QemuConsole *con, int fallback);

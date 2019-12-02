@@ -24,8 +24,16 @@
 #include "sysemu/sysemu.h"
 #include "qemu/error-report.h"
 #include "qemu/module.h"
+#include "hw/net/smc91c111.h"
+#include "hw/i2c/i2c.h"
+#include "hw/signal_analysis/sample.h"
+#include "hw/display/device_manager.h"
+#include "hw/gpio/100ask_imx6ull_buttons.h"
+
 
 #define NAME_SIZE 20
+
+void create_100ask_qemu_fb(void);
 
 static void fsl_imx6ul_init(Object *obj)
 {
@@ -379,6 +387,7 @@ static void fsl_imx6ul_realize(DeviceState *dev, Error **errp)
                                             FSL_IMX6UL_I2Cn_IRQ[i]));
     }
 
+
     /*
      * UART
      */
@@ -421,31 +430,37 @@ static void fsl_imx6ul_realize(DeviceState *dev, Error **errp)
     /*
      * Ethernet
      */
+#if 1
+    if (nd_table[0].used)  /* 100ask, 第三个网卡 */
+        smc91c111_init(&nd_table[0], FSL_IMX6UL_EIM_CS_ADDR, 
+				        qdev_get_gpio_in(DEVICE(&s->a7mpcore),
+                                            FSL_IMX6UL_ENET2_TIMER_IRQ));
+
     for (i = 0; i < FSL_IMX6UL_NUM_ETHS; i++) {
-        static const hwaddr FSL_IMX6UL_ENETn_ADDR[FSL_IMX6UL_NUM_ETHS] = {
+        static const hwaddr FSL_IMX6UL_ENETn_ADDR[2] = {
             FSL_IMX6UL_ENET1_ADDR,
-            FSL_IMX6UL_ENET2_ADDR,
+			FSL_IMX6UL_ENET2_ADDR,
         };
-
-        static const int FSL_IMX6UL_ENETn_IRQ[FSL_IMX6UL_NUM_ETHS] = {
+        static const int FSL_IMX6UL_ENETn_IRQ[2] = {
             FSL_IMX6UL_ENET1_IRQ,
-            FSL_IMX6UL_ENET2_IRQ,
+			FSL_IMX6UL_ENET2_IRQ,
         };
 
-        static const int FSL_IMX6UL_ENETn_TIMER_IRQ[FSL_IMX6UL_NUM_ETHS] = {
+        static const int FSL_IMX6UL_ENETn_TIMER_IRQ[2] = { //100ask
             FSL_IMX6UL_ENET1_TIMER_IRQ,
-            FSL_IMX6UL_ENET2_TIMER_IRQ,
+			FSL_IMX6UL_ENET2_TIMER_IRQ,
         };
 
         object_property_set_uint(OBJECT(&s->eth[i]),
                                  FSL_IMX6UL_ETH_NUM_TX_RINGS,
                                  "tx-ring-num", &error_abort);
-        qdev_set_nic_properties(DEVICE(&s->eth[i]), &nd_table[i]);
+        qdev_set_nic_properties(DEVICE(&s->eth[i]), &nd_table[i+1]);
         object_property_set_bool(OBJECT(&s->eth[i]), true, "realized",
                                  &error_abort);
 
         sysbus_mmio_map(SYS_BUS_DEVICE(&s->eth[i]), 0,
                         FSL_IMX6UL_ENETn_ADDR[i]);
+
 
         sysbus_connect_irq(SYS_BUS_DEVICE(&s->eth[i]), 0,
                            qdev_get_gpio_in(DEVICE(&s->a7mpcore),
@@ -456,6 +471,7 @@ static void fsl_imx6ul_realize(DeviceState *dev, Error **errp)
                                             FSL_IMX6UL_ENETn_TIMER_IRQ[i]));
     }
 
+#endif
     /*
      * USDHC
      */
@@ -535,10 +551,20 @@ static void fsl_imx6ul_realize(DeviceState *dev, Error **errp)
         create_unimplemented_device(name, FSL_IMX6UL_ADCn_ADDR[i], 0x4000);
     }
 
+	create_device_manager();
+
     /*
      * LCD
      */
-    create_unimplemented_device("lcdif", FSL_IMX6UL_LCDIF_ADDR, 0x4000);
+    //create_unimplemented_device("lcdif", FSL_IMX6UL_LCDIF_ADDR, 0x4000);
+    create_100ask_qemu_fb();
+
+    /*
+     * AT24C02, 100ask
+     */
+	i2c_create_slave(s->i2c[0].bus, "at24c-eeprom", 0x50);
+
+	create_imx6ull_buttons();
 
     /*
      * ROM memory
@@ -556,6 +582,25 @@ static void fsl_imx6ul_realize(DeviceState *dev, Error **errp)
     memory_region_add_subregion(get_system_memory(), FSL_IMX6UL_CAAM_MEM_ADDR,
                                 &s->caam);
 
+	
+    /*
+     * IOMUXC_SNVS memory, 100ask
+     */
+    memory_region_init_rom(&s->iomuxc_snvs, NULL, "imx6ul.iomux_snvs",
+                           FSL_IMX6UL_IOMUXC_SNVS_SIZE, &error_abort);
+    memory_region_add_subregion(get_system_memory(), FSL_IMX6UL_IOMUXC_SNVS,
+                                &s->iomuxc_snvs);
+
+#if 0
+	/*
+	 * EMI(NOR/SRAM), 100ask
+	 */
+	memory_region_init_rom(&s->emi, NULL, "imx6ul.emi",
+						   FSL_IMX6UL_EIM_CS_SIZE, &error_abort);
+	memory_region_add_subregion(get_system_memory(), FSL_IMX6UL_EIM_CS_ADDR,
+								&s->emi);
+#endif
+
     /*
      * OCRAM memory
      */
@@ -572,6 +617,8 @@ static void fsl_imx6ul_realize(DeviceState *dev, Error **errp)
                              &s->ocram, 0, FSL_IMX6UL_OCRAM_ALIAS_SIZE);
     memory_region_add_subregion(get_system_memory(),
                                 FSL_IMX6UL_OCRAM_ALIAS_ADDR, &s->ocram_alias);
+
+	start_signal_analysis_sample();  /* 100ask */								
 }
 
 static void fsl_imx6ul_class_init(ObjectClass *oc, void *data)

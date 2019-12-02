@@ -2090,6 +2090,22 @@ static void parse_display(const char *p)
     }
 }
 
+void imx6ul_board_select(const char *name);
+
+static void parse_company(const char *p)
+{
+    const char *opts;
+
+    if (strstart(p, "fire", &opts)) {
+			imx6ul_board_select("fire");
+		}else if (strstart(p, "atk", &opts)) {
+			imx6ul_board_select("atk");
+			}else {
+				imx6ul_board_select("100ask");
+    	}
+}
+
+
 char *qemu_find_file(int type, const char *name)
 {
     int i;
@@ -3042,6 +3058,12 @@ int main(int argc, char **argv, char **envp)
             case QEMU_OPTION_display:
                 parse_display(optarg);
                 break;
+			
+			case QEMU_OPTION_com:      /* 100ask, company */
+            case QEMU_OPTION_company:  /* 100ask, company */
+                parse_company(optarg);
+                break;
+			
             case QEMU_OPTION_nographic:
                 olist = qemu_find_opts("machine");
                 qemu_opts_parse_noisily(olist, "graphics=off", false);

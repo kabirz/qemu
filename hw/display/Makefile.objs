@@ -40,6 +40,8 @@ common-obj-$(CONFIG_SM501) += sm501.o
 common-obj-$(CONFIG_TCX) += tcx.o
 common-obj-$(CONFIG_CG3) += cg3.o
 common-obj-$(CONFIG_NEXTCUBE) += next-fb.o
+common-obj-$(CONFIG_FSL_IMX6UL) += 100ask_qemu_fb.o
+common-obj-$(CONFIG_FSL_IMX6UL) += device_manager.o
 
 obj-$(CONFIG_VGA) += vga.o
 
